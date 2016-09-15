@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project name="CarshareApi" default="package">
+
+    <target name="prepare">
+        <fail unless="configs" message="Config location must be set" />
+
+        <property name="version" value="0.0.1"/>
+        <property name="tmpdir" value="/tmp/carshare-api-build"/>
+        <property name="dest" value="builds"/>
+        <property name="deployenv" value="dev"/>
+        <property name="composerbin" value="/var/www/sites/carshare-api/composer.phar"/>
+
+        <echo msg="Cleaning build directory"/>
+        <delete dir="${tmpdir}" includeemptydirs="true" verbose="false" failonerror="false" />
+
+        <echo msg="Making tmp build directory ${tmpdir}"/>
+        <mkdir dir="${tmpdir}"/>
+
+        <echo msg="Making empty data directories..."/>
+        <mkdir dir="${tmpdir}/data/config"/>
+        <mkdir dir="${tmpdir}/data/DoctrineORMModule"/>
+        <mkdir dir="${tmpdir}/data/DoctrineORMModule/Migrations"/>
+        <mkdir dir="${tmpdir}/data/DoctrineORMModule/Proxy"/>
+
+        <echo msg="Making log directory..."/>
+        <mkdir dir="${tmpdir}/log"/>
+
+        <!--<echo msg="Copying migration scripts to build directory..."/>-->
+        <!--<copy todir="${tmpdir}/data/Migrations">-->
+            <!--<fileset dir="data/Migrations">-->
+                <!--<include name="**"/>-->
+            <!--</fileset>-->
+        <!--</copy>-->
+
+        <echo msg="Copying modules to build directory..."/>
+        <copy todir="${tmpdir}/module">
+            <fileset dir="module">
+                <include name="**"/>
+            </fileset>
+        </copy>
+
+        <echo msg="Copying autoload configs..."/>
+        <copy todir="${tmpdir}/config/autoload" overwrite="true">
+            <fileset dir="config/autoload">
+                <include name="*.php"/>
+                <exclude name="*.test.php"/>
+                <exclude name="*.local.php"/>
+            </fileset>
+            <fileset dir="${configs}">
+                <include name="*.php"></include>
+            </fileset>
+        </copy>
+        <echo msg="Copying generateMO script..."/>
+        <copy todir="${tmpdir}/scripts" overwrite="true">
+            <fileset dir="scripts">
+                <include name="generateMO.php"/>
+            </fileset>
+        </copy>
+
+        <echo msg="Copying essential files..."/>
+        <copy file="config/application.config.php" todir="${tmpdir}/config"/>
+        <copy file="config/modules.config.php" todir="${tmpdir}/config"/>
+        <!--<copy file="config/migrations.xml" todir="${tmpdir}/config"/>-->
+        <copy file="composer.json" tofile="${tmpdir}/composer.json" overwrite="true"/>
+        <copy file="composer.lock" tofile="${tmpdir}/composer.lock" overwrite="true"/>
+        <copy file="public/index.php" tofile="${tmpdir}/public/index.php" overwrite="true"/>
+        <copy file="public/.htaccess" tofile="${tmpdir}/public/.htaccess" overwrite="true"/>
+        <copy todir="${tmpdir}/public/vehicleModels">
+            <fileset dir="public/vehicleModels">
+                <include name="**"/>
+            </fileset>
+        </copy>
+
+        <echo msg="Running composer..."/>
+        <exec command="HTTP_PROXY=http://naproxy.gm.com http_proxy=http://naproxy.gm.com php ${composerbin} install --optimize-autoloader --no-dev --no-scripts" dir="${tmpdir}" passthru="true"></exec>
+
+        <echo msg="Generating autoload classmaps..."/>
+        <exec command="php vendor/zendframework/zendframework/bin/classmap_generator.php --library=module/ApiCarshare/" dir="${tmpdir}" passthru="true"></exec>
+        <exec command="php vendor/zendframework/zendframework/bin/classmap_generator.php --library=module/Application/" dir="${tmpdir}" passthru="true"></exec>
+        <exec command="php vendor/zendframework/zendframework/bin/classmap_generator.php --library=module/UAS/" dir="${tmpdir}" passthru="true"></exec>
+
+        <echo msg="Generating MO files..."/>
+        <exec command="php scripts/generateMO.php" dir="${tmpdir}" passthru="true"></exec>
+        
+        <echo msg="Setting permissions..."/>
+        <exec command="find . -type d -exec chmod 755 {} +" dir="${tmpdir}" passthru="true"></exec>
+        <exec command="find . -type f -exec chmod 644 {} +" dir="${tmpdir}" passthru="true"></exec>
+
+    </target>
+
+    <target name="package" depends="prepare">
+        <tstamp />
+
+        <echo msg="Creating archive..."/>
+        <tar destfile="${dest}/maven-api-${DSTAMP}-${TSTAMP}-v${version}-${deployenv}.tar.gz" compression="gzip">
+            <fileset dir="${tmpdir}" defaultexcludes="true">
+                <include name="**"/>
+                <exclude name="**/.idea/**"></exclude>
+                <exclude name="**/.git/**"></exclude>
+            </fileset>
+        </tar>
+
+        <echo msg="Deleting build directory"/>
+        <delete dir="${tmpdir}" includeemptydirs="true" verbose="false" failonerror="true" />
+
+    </target>
+
+</project>
